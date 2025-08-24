@@ -50,11 +50,10 @@ fn main() -> Result<()> {
     let mut format = args.format;
     if matches!(format, Format::Console) {
         if let Some(output_path) = &args.output {
-            if output_path.extension().and_then(|s| s.to_str()) == Some("md") {
-                format = Format::Markdown;
-            }
-            if output_path.extension().and_then(|s| s.to_str()) == Some("txt") {
-                format = Format::Text;
+            match output_path.extension().and_then(|s| s.to_str()) {
+                Some("md") => format = Format::Markdown,
+                Some("txt") => format = Format::Text,
+                _ => {}
             }
         }
     }
