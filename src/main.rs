@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use codebase_to_prompt::Format;
 use std::path::PathBuf;
-use tracing::{info, level_filters::LevelFilter};
+use tracing::{debug, info, level_filters::LevelFilter};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
@@ -47,7 +47,6 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    // Automatically detect format if outputting to a .md file
     let mut format = args.format;
     if matches!(format, Format::Console) {
         if let Some(output_path) = &args.output {
@@ -73,7 +72,7 @@ fn main() -> Result<()> {
         respect_gitignore: args.respect_gitignore,
     };
 
-    info!("Starting codebase to prompt with config: {:?}", config);
+    debug!("Starting codebase to prompt with config: {:?}", config);
 
     codebase_to_prompt::run(config)
 }
