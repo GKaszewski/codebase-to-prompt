@@ -14,65 +14,57 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            asset_name: codebase-to-prompt-linux-amd64
           - os: macos-latest
             target: x86_64-apple-darwin
+            asset_name: codebase-to-prompt-macos-amd64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            asset_name: codebase-to-prompt-windows-amd64.exe
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          name: codebase-to-prompt-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/codebase-to-prompt*
+          targets: ${{ matrix.target }}
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare artifact path
+        id: artifact_path
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            echo "path=target/${{ matrix.target }}/release/codebase-to-prompt.exe" >> $GITHUB_OUTPUT
+          else
+            echo "path=target/${{ matrix.target }}/release/codebase-to-prompt" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ steps.artifact_path.outputs.path }}
 
   release:
-    name: Create Release
+    name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # This is required to create a release and upload assets
     steps:
-      - uses: actions/checkout@v2
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: artifacts
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: artifacts/
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-      - name: Upload Release Asset (Linux)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/codebase-to-prompt-x86_64-unknown-linux-gnu/codebase-to-prompt
-          asset_name: codebase-to-prompt-x86_64-unknown-linux-gnu
-          asset_content_type: application/octet-stream
-      - name: Upload Release Asset (macOS)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/codebase-to-prompt-x86_64-apple-darwin/codebase-to-prompt
-          asset_name: codebase-to-prompt-x86_64-apple-darwin
-          asset_content_type: application/octet-stream
-      - name: Upload Release Asset (Windows)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/codebase-to-prompt-x86_64-pc-windows-msvc/codebase-to-prompt.exe
-          asset_name: codebase-to-prompt-x86_64-pc-windows-msvc.exe
-          asset_content_type: application/octet-stream
+          files: |
+            artifacts/codebase-to-prompt-linux-amd64/*
+            artifacts/codebase-to-prompt-macos-amd64/*
+            artifacts/codebase-to-prompt-windows-amd64.exe/*
