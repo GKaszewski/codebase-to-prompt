@@ -36,61 +36,72 @@ pub fn run(config: Config) -> Result<()> {
     let mut output_path = config.output.clone();
 
     if config.append_date || config.append_git_hash {
-        if let Some(path) = &mut output_path {
-            let mut new_filename = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or_default()
-                .to_string();
-
-            if config.append_date {
-                new_filename.push('_');
-                new_filename.push_str(&Local::now().format("%Y%m%d").to_string());
-                info!("Appending date to filename.");
-            }
-
-            if config.append_git_hash {
-                match Repository::open(&config.directory) {
-                    Ok(repo) => {
-                        let head = repo.head().context("Failed to get repository HEAD")?;
-                        if let Some(oid) = head.target() {
-                            new_filename.push('_');
-                            new_filename.push_str(&oid.to_string()[..7]);
-                            info!("Appending git hash to filename.");
-                        }
-                    }
-                    Err(_) => warn!("Not a git repository, cannot append git hash."),
-                }
-            }
-
-            if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                new_filename.push('.');
-                new_filename.push_str(ext);
-            }
-            path.set_file_name(new_filename);
-        }
+        append_date_and_git_hash(&mut output_path, &config)?;
     }
 
-    // Determine the output writer (file or stdout)
-    let writer: Box<dyn Write> = if let Some(path) = &output_path {
-        info!("Output will be written to: {}", path.display());
-        let file = File::create(path)
-            .with_context(|| format!("Failed to create output file: {}", path.display()))?;
-        Box::new(BufWriter::new(file))
-    } else {
-        info!("Output will be written to stdout.");
-        Box::new(BufWriter::new(io::stdout()))
-    };
+    let writer = determine_output_writer(&output_path)?;
 
     process_directory(&config, writer)
 }
 
+/// Appends date and git hash to the output file name if required.
+fn append_date_and_git_hash(output_path: &mut Option<PathBuf>, config: &Config) -> Result<()> {
+    if let Some(path) = output_path {
+        let mut new_filename = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_string();
+
+        if config.append_date {
+            new_filename.push('_');
+            new_filename.push_str(&Local::now().format("%Y%m%d").to_string());
+            info!("Appending date to filename.");
+        }
+
+        if config.append_git_hash {
+            match Repository::open(&config.directory) {
+                Ok(repo) => {
+                    let head = repo.head().context("Failed to get repository HEAD")?;
+                    if let Some(oid) = head.target() {
+                        new_filename.push('_');
+                        new_filename.push_str(&oid.to_string()[..7]);
+                        info!("Appending git hash to filename.");
+                    }
+                }
+                Err(_) => warn!("Not a git repository, cannot append git hash."),
+            }
+        }
+
+        if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+            new_filename.push('.');
+            new_filename.push_str(ext);
+        }
+        path.set_file_name(new_filename);
+    }
+    Ok(())
+}
+
+/// Determines the output writer (file or stdout).
+fn determine_output_writer(output_path: &Option<PathBuf>) -> Result<Box<dyn Write>> {
+    if let Some(path) = output_path {
+        info!("Output will be written to: {}", path.display());
+        let file = File::create(path)
+            .with_context(|| format!("Failed to create output file: {}", path.display()))?;
+        Ok(Box::new(BufWriter::new(file)))
+    } else {
+        info!("Output will be written to stdout.");
+        Ok(Box::new(BufWriter::new(io::stdout())))
+    }
+}
+
+// Refactored `process_directory` function
 fn process_directory(config: &Config, mut writer: Box<dyn Write>) -> Result<()> {
     let (gitignore, _) = Gitignore::new(config.directory.join(".gitignore"));
 
     let walker = WalkDir::new(&config.directory)
         .into_iter()
-        .filter_entry(|e| !is_hidden(e, config) && !is_ignored(e, &gitignore, config));
+        .filter_entry(|e| should_include_entry(e, &gitignore, config));
 
     for result in walker {
         let entry = match result {
@@ -101,42 +112,53 @@ fn process_directory(config: &Config, mut writer: Box<dyn Write>) -> Result<()> 
             }
         };
 
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
+        if let Err(err) = process_file_entry(&entry, &mut writer, config) {
+            error!("{}", err);
         }
-
-        let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-
-        let apply_include_filter = !config.include.is_empty()
-            && !(config.include.len() == 1 && config.include[0].is_empty());
-
-        if apply_include_filter && !config.include.contains(&extension.to_string()) {
-            continue;
-        }
-
-        if config.exclude.contains(&extension.to_string()) {
-            continue;
-        }
-
-        let relative_path = path.strip_prefix(&config.directory).unwrap_or(path);
-        let content = match fs::read_to_string(path) {
-            Ok(content) => content,
-            Err(_) => {
-                warn!("Skipping non-UTF-8 file: {}", path.display());
-                continue; // Skip non-text files
-            }
-        };
-
-        write_file_content(&mut writer, relative_path, &content, extension, config)
-            .with_context(|| format!("Failed to write file content for {}", path.display()))?;
     }
 
     info!("File bundling complete.");
     Ok(())
 }
 
-/// Writes the content of a single file to the writer based on the specified format.
+/// Determines if a directory entry should be included.
+fn should_include_entry(entry: &DirEntry, gitignore: &Gitignore, config: &Config) -> bool {
+    !is_hidden(entry, config) && !is_ignored(entry, gitignore, config)
+}
+
+/// Processes a single file entry.
+fn process_file_entry(entry: &DirEntry, writer: &mut dyn Write, config: &Config) -> Result<()> {
+    let path = entry.path();
+    if !path.is_file() {
+        return Ok(());
+    }
+
+    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+    let apply_include_filter =
+        !config.include.is_empty() && !(config.include.len() == 1 && config.include[0].is_empty());
+
+    if apply_include_filter && !config.include.contains(&extension.to_string()) {
+        return Ok(());
+    }
+
+    if config.exclude.contains(&extension.to_string()) {
+        return Ok(());
+    }
+
+    let relative_path = path.strip_prefix(&config.directory).unwrap_or(path);
+    let content = match fs::read_to_string(path) {
+        Ok(content) => content,
+        Err(_) => {
+            warn!("Skipping non-UTF-8 file: {}", path.display());
+            return Ok(()); // Skip non-text files
+        }
+    };
+
+    write_file_content(writer, relative_path, &content, extension, config)
+        .with_context(|| format!("Failed to write file content for {}", path.display()))
+}
+
 fn write_file_content(
     writer: &mut dyn Write,
     path: &Path,

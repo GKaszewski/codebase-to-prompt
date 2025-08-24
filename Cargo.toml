@@ -12,3 +12,9 @@ ignore = "0.4.23"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 walkdir = "2.5.0"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"
