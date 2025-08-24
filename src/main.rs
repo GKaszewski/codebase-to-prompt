@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use codebase_to_prompt::Format;
 use std::path::PathBuf;
-use tracing::{debug, info, level_filters::LevelFilter};
+use tracing::{debug, level_filters::LevelFilter};
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
