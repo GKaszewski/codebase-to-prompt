@@ -48,13 +48,13 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let mut format = args.format;
-    if matches!(format, Format::Console) {
-        if let Some(output_path) = &args.output {
-            match output_path.extension().and_then(|s| s.to_str()) {
-                Some("md") => format = Format::Markdown,
-                Some("txt") => format = Format::Text,
-                _ => {}
-            }
+    if matches!(format, Format::Console)
+        && let Some(output_path) = &args.output
+    {
+        match output_path.extension().and_then(|s| s.to_str()) {
+            Some("md") => format = Format::Markdown,
+            Some("txt") => format = Format::Text,
+            _ => {}
         }
     }
 
