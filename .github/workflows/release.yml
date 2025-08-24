@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: codebase-to-prompt-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/codebase-to-prompt*
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: artifacts
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Upload Release Asset (Linux)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/codebase-to-prompt-x86_64-unknown-linux-gnu/codebase-to-prompt
+          asset_name: codebase-to-prompt-x86_64-unknown-linux-gnu
+          asset_content_type: application/octet-stream
+      - name: Upload Release Asset (macOS)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/codebase-to-prompt-x86_64-apple-darwin/codebase-to-prompt
+          asset_name: codebase-to-prompt-x86_64-apple-darwin
+          asset_content_type: application/octet-stream
+      - name: Upload Release Asset (Windows)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./artifacts/codebase-to-prompt-x86_64-pc-windows-msvc/codebase-to-prompt.exe
+          asset_name: codebase-to-prompt-x86_64-pc-windows-msvc.exe
+          asset_content_type: application/octet-stream
