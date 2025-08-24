@@ -33,6 +33,7 @@ jobs:
 
       - name: Prepare artifact path
         id: artifact_path
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             echo "path=target/${{ matrix.target }}/release/codebase-to-prompt.exe" >> $GITHUB_OUTPUT
