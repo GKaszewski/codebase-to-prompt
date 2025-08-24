@@ -32,7 +32,7 @@ cargo install codebase-to-prompt
 You can download and run the installation script, which will install the latest release binary for your system:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/GKaszewski/codebase-to-prompt/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/GKaszewski/codebase-to-prompt/master/install.sh | sh
 ```
 
 ### Option 3: From GitHub Releases
