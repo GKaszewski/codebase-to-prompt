@@ -17,7 +17,7 @@
 1. Ensure you have [Rust](https://www.rust-lang.org/) installed.
 2. Clone this repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/GKaszewski/codebase-to-prompt
    cd codebase-to-prompt
    ```
 3. Build the project:
