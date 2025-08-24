@@ -3,6 +3,11 @@ name = "codebase-to-prompt"
 version = "1.0.0"
 edition = "2024"
 authors = ["Gabriel Kaszewski <gabrielkaszewski@gmail.com>"]
+license = "MIT"
+description = "A tool for bundling text files like code to single file."
+readme = "README.md"
+repository = "https://github.com/GKaszewski/codebase-to-prompt"
+keywords = ["cli"]
 
 [dependencies]
 anyhow = "1.0.99"
