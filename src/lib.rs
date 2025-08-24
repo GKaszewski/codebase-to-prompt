@@ -195,7 +195,7 @@ fn process_file_entry(entry: &DirEntry, writer: &mut dyn Write, config: &Config)
     let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
     let apply_include_filter =
-        !config.include.is_empty() && !(config.include.len() == 1 && config.include[0].is_empty());
+        !(config.include.is_empty() || config.include.len() == 1 && config.include[0].is_empty());
 
     if apply_include_filter && !config.include.contains(&extension.to_string()) {
         return Ok(());
